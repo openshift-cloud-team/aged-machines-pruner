@@ -14,8 +14,8 @@ MACHINES_GO_TEMPLATE = """
 }
 {{- end -}}]
 """
-MACHINE_MAX_AGE_HOURS = float(os.environ.get("MACHINE_MAX_AGE_HOURS", 0.7))  # 7 days
-DRY_RUN = util.strtobool(os.getenv("DRY_RUN", 'false'))
+MACHINE_MAX_AGE_HOURS = float(os.environ.get("MACHINE_MAX_AGE_HOURS", 168))  # 7 days
+DRY_RUN = util.strtobool(os.getenv("DRY_RUN", 'true'))
 DEFAULT_FILTER_LABELS = (
     "machine.openshift.io/cluster-api-machine-type=worker",
     "machine.openshift.io/cluster-api-machine-role=worker"

@@ -1,0 +1,42 @@
+{{- if .Values.rbac.roles.create -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: machine-max-age-pruner
+  namespace: {{ .Values.rbac.roles.machineApiNamespace }}
+  labels:
+    {{- include "max-age-machines-pruner.labels" . | nindent 4 }}
+  {{- with .Values.rbac.roles.annotations }}
+  annotations:
+  {{- toYaml . | nindent 4 }}
+  {{- end }}
+rules:
+  - apiGroups:
+      - machine.openshift.io
+    resources:
+      - machines
+    verbs:
+      - get
+      - list
+      - delete
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: machine-max-age-pruner
+  namespace: {{ .Values.rbac.roles.machineApiNamespace }}
+  labels:
+    {{- include "max-age-machines-pruner.labels" . | nindent 4 }}
+  {{- with .Values.rbac.roles.annotations }}
+  annotations:
+  {{- toYaml . | nindent 4 }}
+  {{- end }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: machine-max-age-pruner
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "max-age-machines-pruner.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}
