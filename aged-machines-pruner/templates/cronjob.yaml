@@ -1,0 +1,59 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "max-age-machines-pruner.fullname" . }}
+  labels:
+  {{- include "max-age-machines-pruner.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.maxAgeMachinePruner.schedule }}
+  concurrencyPolicy: "Forbid"
+  startingDeadlineSeconds: 30
+  suspend: {{ .Values.maxAgeMachinePruner.suspend }}
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            parent: {{ include "max-age-machines-pruner.fullname" . }}
+        spec:
+          restartPolicy: Never
+          serviceAccountName: {{ include "max-age-machines-pruner.serviceAccountName" . }}
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets:
+          {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.maxAgeMachinePruner.pod.nodeSelector }}
+          nodeSelector:
+          {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.maxAgeMachinePruner.pod.affinity }}
+          affinity:
+          {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.maxAgeMachinePruner.pod.tolerations }}
+          tolerations:
+          {{- toYaml . | nindent 12 }}
+          {{- end }}
+          containers:
+          - name: machine-max-age-pruner
+            image: {{ .Values.image }}
+            imagePullPolicy: {{ .Values.imagePullPolicy }}
+            command: ["python", "/opt/max_age_machine_pruner.py"]
+            volumeMounts:
+              - name: machine-max-age-pruner-script
+                mountPath: /opt
+            env:
+              - name: DRY_RUN
+                value: {{ .Values.maxAgeMachinePruner.DRY_RUN | quote }}
+              - name: MACHINE_MAX_AGE_HOURS
+                value: {{ .Values.maxAgeMachinePruner.MACHINE_MAX_AGE_HOURS | quote }}
+              - name: ADDITIONAL_FILTER_LABELS
+                value: {{ .Values.maxAgeMachinePruner.ADDITIONAL_FILTER_LABELS | quote }}
+              - name: MAX_DELETING_AT_ONCE
+                value: {{ .Values.maxAgeMachinePruner.MAX_DELETING_AT_ONCE | quote }}
+          volumes:
+            - name: machine-max-age-pruner-script
+              configMap:
+                name: {{ include "max-age-machines-pruner.fullname" . }}-script

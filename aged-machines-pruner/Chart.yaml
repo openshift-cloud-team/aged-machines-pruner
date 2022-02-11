@@ -1,0 +1,9 @@
+apiVersion: v2
+name: aged-machines-pruner
+description: A Helm chart for Openshift contains cron script for delete machines older than certain age
+
+type: application
+
+version: 0.1.0
+
+appVersion: "0.1.0"
