@@ -86,17 +86,22 @@ def delete_machines(machines: List[SimpleMachine]):
     if machines:
         log.info(f"Try delete machines: {', '.join([m.name for m in machines])}")
         log.info(f"DRY_RUN is {DRY_RUN}")
-        delete_result = subprocess.run([
-            "oc",
-            "delete",
-            "machines",
-            f"{' '.join([m.name for m in machines])}",
-            "-n" "openshift-machine-api",
-            "--dry-run=client" if DRY_RUN else ""
-        ], check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if delete_result.returncode != 0:
-            log_subprocess_err(delete_result)
-            exit(1)
+        for machine in machines:
+            log.info(f"Trying delete {machine.name}")
+            args = [
+                "oc",
+                "delete",
+                "machine",
+                f"{machine.name}",
+                "-n", "openshift-machine-api",
+                "--wait=false",
+            ]
+            if DRY_RUN:
+                args.append("--dry-run=client")
+            delete_result = subprocess.run(args, check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            if delete_result.returncode != 0:
+                log_subprocess_err(delete_result)
+                exit(1)
     else:
         log.info("No machines marked for deletion")
 
@@ -113,8 +118,9 @@ def log_settings():
 def log_subprocess_err(process: subprocess.CompletedProcess):
     log.error(f"""
     OC command finished with non zero return code:
-        STDOUT:{process.stdout}
-        STDERR:{process.stderr}
+        COMMAND: {subprocess.list2cmdline(process.args)}
+        STDOUT:{str(process.stdout)}
+        STDERR:{str(process.stderr)}
         CODE:{process.returncode}""")
 
 
