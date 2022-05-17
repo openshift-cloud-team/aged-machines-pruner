@@ -2,16 +2,16 @@
 # Opinionated defaults for aged-machines-pruner.
 # ------------------------------------------------------------------------------
 
-# Openshift built-in cli image,
-# quay.io/openshift/origin-cli would be fine too.
+# Openshift cli image,
+# built-in openshift/cli would be fine too.
 # Image should contain oc (openshift cli) binary and python 3.6+
-image: "image-registry.openshift-image-registry.svc:5000/openshift/cli"
+image: "registry.redhat.io/openshift4/ose-cli"
 imageTag: "latest"
 imagePullPolicy: IfNotPresent
 imagePullSecrets: []
 
 
-maxAgeMachinePruner:
+agedMachinesPruner:
   pod:
     nodeSelector:
       node-role.kubernetes.io/master: ""
@@ -23,7 +23,7 @@ maxAgeMachinePruner:
   schedule: "0 0 * * MON"
   suspend: false
 
-  DRY_RUN: false
+  DRY_RUN: true
   MACHINE_MAX_AGE_HOURS: 10
   ADDITIONAL_FILTER_LABELS: ""
   MAX_DELETING_AT_ONCE: 1

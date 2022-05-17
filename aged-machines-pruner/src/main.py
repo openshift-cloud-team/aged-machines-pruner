@@ -24,8 +24,8 @@ ADDITIONAL_FILTER_LABELS = tuple((label for label in os.getenv("ADDITIONAL_LABEL
 FILTER_LABELS = DEFAULT_FILTER_LABELS + ADDITIONAL_FILTER_LABELS
 MAX_DELETING_AT_ONCE = int(os.getenv("MAX_DELETING_AT_ONCE", 1))
 
-logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
-log = logging.getLogger()
+logging.basicConfig(stream=sys.stdout, level=logging.DEBUG, format='%(asctime)s %(levelname)-8s %(message)s')
+log = logging.getLogger("aged-machines-pruner")
 
 
 class SimpleMachine:
