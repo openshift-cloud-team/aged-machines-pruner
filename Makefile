@@ -12,10 +12,10 @@ install:  ## install chart
 upgrade:  ## upgrade chart
 	helm upgrade aged-machines-pruner ./aged-machines-pruner --namespace aged-machines-pruner
 
-disable-dry-run: ## upgrades chart with disabled dry-run mode
+disable-dry-run: ## upgrade chart with disabled dry-run mode
 	helm upgrade aged-machines-pruner ./aged-machines-pruner --namespace aged-machines-pruner --set agedMachinesPruner.DRY_RUN=0
 
-enable-dry-run: ## upgrades chart with enabled dry-run mode
+enable-dry-run: ## upgrade chart with enabled dry-run mode
 	helm upgrade aged-machines-pruner ./aged-machines-pruner --namespace aged-machines-pruner --set agedMachinesPruner.DRY_RUN=1
 
 delete: ## delete chart
