@@ -5,7 +5,7 @@
     kubectl get jobs --namespace {{ .Release.Namespace }} -o wide
 
 * Get latest job logs
-    kubectl logs -n {{ .Release.Namespace }} $(kubectl get pods -n {{ .Release.Namespace }} -l parent --sort-by=.metadata.creationTimestamp -o 'jsonpath={.items[-1].metadata.name}')
+    kubectl logs -n {{ .Release.Namespace }} $(kubectl get pods -n {{ .Release.Namespace }} -l parent={{ include "max-age-machines-pruner.fullname" . }} --sort-by=.metadata.creationTimestamp -o 'jsonpath={.items[-1].metadata.name}')
 
 Applied settings:
     Image: {{ .Values.image }}
