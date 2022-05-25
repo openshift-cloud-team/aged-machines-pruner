@@ -24,11 +24,16 @@ ADDITIONAL_FILTER_LABELS = tuple((label for label in os.getenv("ADDITIONAL_LABEL
 FILTER_LABELS = DEFAULT_FILTER_LABELS + ADDITIONAL_FILTER_LABELS
 MAX_DELETING_AT_ONCE = int(os.getenv("MAX_DELETING_AT_ONCE", 1))
 
+MACHINES_GVK = "machines.machine.openshift.io"
+
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG, format='%(asctime)s %(levelname)-8s %(message)s')
 log = logging.getLogger("aged-machines-pruner")
 
 
 class SimpleMachine:
+    """
+    Intended for unmarshalling `oc get` results into it. Represents a single machine.
+    """
     name: str
     created: datetime.datetime
     phase: str
@@ -50,7 +55,7 @@ def get_machines() -> List[SimpleMachine]:
     machines_result = subprocess.run([
         "oc",
         "get",
-        "machines",
+        MACHINES_GVK,
         "-n", "openshift-machine-api",
         "-l",
         f"{','.join(DEFAULT_FILTER_LABELS + ADDITIONAL_FILTER_LABELS)}",
@@ -65,6 +70,9 @@ def get_machines() -> List[SimpleMachine]:
 
 
 def filter_machines(machines: List[SimpleMachine]) -> List[SimpleMachine]:
+    """
+    Filters machines which would be marked for deletion down the line
+    """
     deleting_machines = list(filter(lambda machine: machine.phase == "Deleting", machines))
     if deleting_machines:
         log.info(f"Machines in deleting phase: {[m.name for m in deleting_machines]}, Total: {len(deleting_machines)}")
@@ -91,7 +99,7 @@ def delete_machines(machines: List[SimpleMachine]):
             args = [
                 "oc",
                 "delete",
-                "machine",
+                MACHINES_GVK,
                 f"{machine.name}",
                 "-n", "openshift-machine-api",
                 "--wait=false",

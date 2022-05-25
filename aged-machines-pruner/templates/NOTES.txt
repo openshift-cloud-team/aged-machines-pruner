@@ -7,6 +7,9 @@
 * Get latest job logs
     kubectl logs -n {{ .Release.Namespace }} $(kubectl get pods -n {{ .Release.Namespace }} -l parent={{ include "max-age-machines-pruner.fullname" . }} --sort-by=.metadata.creationTimestamp -o 'jsonpath={.items[-1].metadata.name}')
 
+* Get release resources
+    kubect; get all --all-namespaces -l='app.kubernetes.io/managed-by=Helm,app.kubernetes.io/instance={{ .Release.Name }}'
+
 Applied settings:
     Image: {{ .Values.image }}
     Schedule: {{ .Values.agedMachinesPruner.schedule }}
