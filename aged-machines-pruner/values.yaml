@@ -13,8 +13,7 @@ imagePullSecrets: []
 
 agedMachinesPruner:
   pod:
-    nodeSelector:
-      node-role.kubernetes.io/master: ""
+    nodeSelector: {}
     tolerations:
       - key: "node-role.kubernetes.io/master"
         operator: "Exists"
