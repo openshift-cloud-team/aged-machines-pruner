@@ -5,7 +5,7 @@
 For some business reasons, it might be needed to recreate Machines upon reaching a certain age, 7 days for example.
 It might help to ensure that applications are resilient to node or infrastructure failures.
 Also, It helps ensure applications are resilient when underlying nodes go through whatever manipulations.
-This article intended to describe an approach to make such automation using Openshift's built-in APIs, such as CronJobs.
+This article describes an approach to make such automation using Openshift's built-in APIs, such as CronJobs.
 
 ### Introduction
 
@@ -20,7 +20,7 @@ Due to the nature of Machine objects, it's quite possible to customize and exten
 This article intended to describe an approach to manipulating machines using CronJobs and `oc` CLI tool and a bit of python scripting.
 
 #### MachineSet
-A MachineSet it's a group of Machines with the purpose to maintain a stable set of Machines running at any given time.
+A MachineSet is a group of Machines with the purpose to maintain a stable set of Machines running at any given time.
 In other words, if one of the Machines which belongs to MachineSet was deleted, the MachineSet controller will recreate it.
 
 #### CronJob / Job
