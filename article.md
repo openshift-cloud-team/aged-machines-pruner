@@ -2,48 +2,58 @@
 
 ## Abstract
 
-For some business reasons, it might be needed to recreate Machines upon reaching a certain age, 7 days for example.
-It might help to ensure that applications are resilient to node or infrastructure failures.
-Also, It helps ensure applications are resilient when underlying nodes go through whatever manipulations.
-This article describes an approach to make such automation using Openshift's built-in APIs, such as CronJobs.
+For some OpenShift deployments, with certain business requirements or technical challenges, users may desire to
+recreate Machines upon reaching a certain age.
+For example, a user may wish to replace Machines once they are older than 7 days.
+
+Replacing the Machines periodically like this may help to ensure that applications are resilient to Node or
+infrastructure failures or to standard upgrade procedures in which Machines are cycled frequently.
+This article describes an approach to automate this procedure using OpenShift's built-in APIs.
 
 ### Introduction
 
-Openshift built-in Machine API allows users to manage cluster's worker (at the moment of writing) machines by using declarative Kubernetes-style APIs.
-Due to the nature of Machine objects, it's quite possible to customize and extend lifecycle management using other built-in Openshift mechanisms as well as external tooling, such as:
+The OpenShift Machine API allows users to manage cluster worker machines by using declarative Kubernetes-style APIs.
+As Machines are a Kubernetes-style construct, it is possible to customize and extend lifecycle management using other built-in OpenShift mechanisms as well as external tooling, such as:
 
 - [CronJobs](https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/) / [Jobs](https://kubernetes.io/docs/concepts/workloads/controllers/job/)
 - [MachineSets](https://docs.openshift.com/container-platform/4.10/machine_management/creating_machinesets/creating-machineset-aws.html#machine-api-overview_creating-machineset-aws)
 - [Helm3](https://helm.sh/) for simplify our automation management
 - [OpenShift CLI](https://docs.openshift.com/container-platform/4.10/cli_reference/openshift_cli/getting-started-cli.html#cli-getting-started)
 
-This article intended to describe an approach to manipulating machines using CronJobs and `oc` CLI tool and a bit of python scripting.
+This article is intended to describe an approach to manipulating Machines using CronJobs, the `oc` CLI tool, and a bit
+of Python scripting.
 
 #### MachineSet
+
 A MachineSet is a group of Machines with the purpose to maintain a stable set of Machines running at any given time.
-In other words, if one of the Machines which belongs to MachineSet was deleted, the MachineSet controller will recreate it.
+In other words, if one of the Machines belonging to a MachineSet is deleted, the MachineSet controller will create a
+replacement Machine to maintain the desired number of replicas.
 
 #### CronJob / Job
-A CronJob creates Jobs on a repeating, user-defined schedule. The job itself is just creating an arbitrary pod and will
-continue to retry the execution of this pod until it will successfully terminate.
 
-The main idea of our automation is to invoke OpenShift CLI within a Job's pod, list machines, check their age, and mark aged ones for deletion.
+A CronJob creates Jobs on a repeating, user-defined schedule. The Job itself creates a Pod and will continue to retry
+the execution of this Pod until it successfully completes.
+
+The main idea of our automation is to invoke OpenShift CLI within a Job's Pod, list Machines, check their age, and mark
+old ones for deletion based on the age policy.
 
 
-### Preparing simple CronJob
+### Preparing an example CronJob
 
-To demonstrate an approach, in this part we will make a simple cron job that will list all the machines from a cluster to a job log every 5 minutes.
-To simplify our experiments a bit here, the `default` namespace will be used.
+To demonstrate this approach, we will make a CronJob that will list and then log all Machines in a cluster, every 5 minutes.
+Note, for simplicity of the example, the `default` namespace will be used.
 
 #### Prerequisites
-- Openshift CLI (oc) is installed
-- Cluster admin privileged (for create additional role in openshift-machine-api namespace)
+
+- OpenShift CLI (oc) is installed
+- Cluster Admin privileges or Admin privileges over the openshift-machine-api namespace (to create an additional role)
 
 #### Roles and ServiceAccounts
 
-For being able to interact with Machine objects within a cluster it's necessary to create a Role, appropriate service account, and RoleBinding.
+To be able to interact with Machine objects within a cluster, it is necessary to create a Role, appropriate ServiceAccount, and a RoleBinding.
 
-We will need a service account to interact with an API server.
+We will need a ServiceAccount to interact with the API server.
+
 ```yaml
 ---
 apiVersion: v1
@@ -54,7 +64,8 @@ metadata:
 ```  
 
 Since Machine objects are namespaced, an additional role is required in the `openshift-machine-api` namespace.
-When necessary verbs list might be extended with "delete" and "edit". Now we will restrict this role with read-only permissions.
+When necessary, the allowed verbs list may be extended with "delete" and "update". For now, we will restrict this role to read-only permissions.
+
 ```yaml
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -90,12 +101,17 @@ subjects:
     namespace: default
 ```
 
-#### OpenShift CLI container image image
+#### OpenShift CLI container image
 
-I would advise to use the [Openshift CLI image](https://catalog.redhat.com/software/containers/openshift4/ose-cli/5cd9ba3f5a13467289f4d51d) from the RedHat catalog - `registry.redhat.io/openshift4/ose-cli`.
-However, built-in in-cluster image (check out `oc get imagestreams --all-namespaces | grep cli`) or [origin-cli](https://quay.io/repository/openshift/origin-cli) one will be suitable too.
+There are three possible choices for appropriate images to access the OpenShift CLI:
 
-#### Simple Machines Lister CronJob
+- The [OpenShift CLI image](https://catalog.redhat.com/software/containers/openshift4/ose-cli/5cd9ba3f5a13467289f4d51d) from the RedHat catalog - `registry.redhat.io/openshift4/ose-cli` (recommended as it contains a working Python environment)
+- The built-in in-cluster image (check out `oc get imagestreams --all-namespaces | grep cli`) (good for disconnected environments)
+- The [origin-cli](https://quay.io/repository/openshift/origin-cli)
+
+Choose whichever image is most readily available for your application.
+
+#### Machine Lister CronJob
 
 Let's write a simple CronJob manifest:
 
@@ -127,11 +143,12 @@ spec:
               command: ["oc", "get", "machines.machine.openshift.io", "-n", "openshift-machine-api", "-o", "wide"]
 ```
 
-For getting information about the jobs you can use either Openshfit web console or the `oc` command-line tool, here are some of the useful commands:
+To retrieve information about the Jobs you can use either the OpenShift web console or the `oc` command-line tool.
+Below are some of the useful commands:
 
-* `oc get cronjobs -o wide` - for getting list of cronjobs
-* `oc get jobs -o wide` - for getting list of jobs
-* `oc logs -n default $(oc get pods -n default -l parent=machines-lister --sort-by=.metadata.creationTimestamp -o 'jsonpath={.items[-1].metadata.name}')` - for getting the latest performed job logs
+* `oc get cronjobs -o wide` - for getting a list of CronJobs
+* `oc get jobs -o wide` - for getting list of Jobs
+* `oc logs -n default $(oc get pods -n default -l parent=machines-lister --sort-by=.metadata.creationTimestamp -o 'jsonpath={.items[-1].metadata.name}')` - for getting the latest performed Job logs
 
 #### Cleanup
 
@@ -143,15 +160,16 @@ Do not forget to clean up our experiment results:
 - `oc delete role machines-lister -n openshift-machine-api`
 
 
-### Extending CronJob with more sophisticated logic
+### Extending the CronJob with more sophisticated logic
 
-For a bit more complex automation it might be necessary to invoke some sort of script in our job.
-This might be done by putting script code into ConfigMap or Secret, mounting it as pod volume with further execution.
+To perform more complex actions, it may be necessary to invoke some sort of script in the Job.
+This can be done by placing the script code into a ConfigMap or Secret.
+This ConfigMap or Secret can then be mounted as a Pod volume for execution within the Job.
 
-To demonstrate this let's extend our `machine-lister` thingy a bit. Luckily `ose-cli` image contains a Python interpreter
-and we can use it without any extra manipulations.
+To demonstrate this, let's extend the `machine-lister` Job.
+The `ose-cli` image contains a Python interpreter and we can use it without any extra setup.
 
-ConfigMap with a python program that does the same as the previous example:
+We can create a ConfigMap with a Python program that does the same as the previous example:
 
 ```yaml
 apiVersion: v1
@@ -167,7 +185,7 @@ data:
       )
 ```
 
-Updated CronJob manifest:
+The CronJob manifest requires some small updates too:
 
 ```yaml
 apiVersion: batch/v1
@@ -204,7 +222,7 @@ spec:
                 name: machines-lister-script
 ```
 
-Jobs console output should remain the same. This approach would allow us to program more sophisticated automation
+The Job's console output should remain the same. This approach allows us to program more sophisticated automation
 without the necessity to build a container image and organize its delivery.
 However, for complex programs, it would be better to build a separate image,
 leveraging Openshift's [BuildConfigs and ImageStreams](https://docs.openshift.com/container-platform/4.10/cicd/builds/understanding-buildconfigs.html)
@@ -215,10 +233,10 @@ might be a good way to do this.
 
 [Helm](https://helm.sh/) is a great tool for managing Kubernetes applications which helps to manage complexity and deal with an application lifecycle
 such as installation, deletion, upgrade, and so on.  
-Note, that charts writing is a quite large topic and it would be reasonable to familiarize yourself with [Helm documentation](https://helm.sh/docs/) beforehand.
-Here I would just briefly touch initial steps of chart development.
+Note, that writing charts is a large topic and it would be beneficial to familiarize yourself with the [Helm documentation](https://helm.sh/docs/) beforehand.
+In the following section, we will briefly touch on the initial steps of chart development.
 
-You could create a chart with `helm init chart` command, which will scaffold a chart template for you:
+We can create a chart with `helm init chart` command, which will scaffold a chart template:
 
 ```
 chart/
@@ -230,9 +248,9 @@ chart/
     └── tests/    # The test files
 ```
 
-You'll need to adjust `Chart.yaml` and `values.yaml` as well as delete scaffolded templates.
+We then need to adjust `Chart.yaml` and `values.yaml` as well as delete the scaffolded templates.
 Keep `_helpers.tpl` since it contains a bunch of useful helpers which will help us to prepare a metadata section for our manifests.
-Then you could move your manifests into the template folder with adjusting metadata.labels section of each manifest as follows.
+Then move the previously prepared CronJob and supporting manifests into the template folder, adjusting the metadata.labels section of each manifest as follows:
 
 ```yaml
 ...
@@ -259,7 +277,7 @@ chart/
     └── NOTES.txt
 ```
 
-For making adjustments in a more convenient way it might make sense to move out automation script out of the configmap template:
+To make adjustments in a more convenient way, it might make sense to move the automation script out of the ConfigMap template:
 
 ```
 chart/
@@ -271,7 +289,7 @@ chart/
 └── templates/    # The template files
 ```
 
-And change `templates/configmap.yaml` by reading configmap data content from the file
+And change `templates/configmap.yaml` by reading ConfigMap data content from the file
 
 ```yaml templates/configmap.yaml
 apiVersion: v1
@@ -291,22 +309,21 @@ Now we can install/upgrade/delete our chart with helm:
 - `helm uninstall machines lister` for chart deletion
 
 
-### Aged machines pruner
+### Aged Machines pruner
 
-Now when we are managed to prepare a convenient deploy/cleanup procedure, we are ready to write some python code which
-will detect aged machines and mark them for deletion.
+Now that we have prepared a convenient deployment and cleanup procedure, we are ready to write some Python code to
+detect old machines and mark them for deletion.
 
-The main idea of this program is to get all machines with `oc` tool in JSON format, check the age of each machine, and mark
-machines with certain age for deletion.
+The main idea of this program is to get all Machines with the `oc` tool, in JSON format, check the age of each Machine,
+and markn Machines with older than a certain age for deletion.
 
-I won't put there a whole program code, but want to show a couple of pieces that describe an interaction with `oc` tool:
+For brevity, the program source code is separate from this document. However, below are a couple of snippets that describe interactions with  the `oc` tool:
 
 * [Using go templates for customizing oc output](https://cloud.redhat.com/blog/customizing-oc-output-with-go-templates). It would help us to prepare machine-readable output.
 * [Python subprocess documentation](https://docs.python.org/3/library/subprocess.html)
 
-
-Here is an example of how to get and unmarshal machine into objects within a python program.
-Note that in this example bunch of axillary things, such as logging, were omitted.
+Here is an example of how to get and unmarshal Machines into objects within a Python program.
+Note that in this example, axillary functionality, such as logging, have been omitted.
 
 ```python
 import subprocess, json, tempfile, datetime
@@ -339,8 +356,8 @@ class SimpleMachine:
     @property
     def age_hours(self):
         return (datetime.datetime.utcnow() - self.created).seconds / 3600
-        
-    
+
+
 def get_machines() -> List[SimpleMachine]:
     print("Trying to get machines via OC")
     with tempfile.NamedTemporaryFile(mode="w", suffix="gotmpl", encoding="UTF-8", delete=False) as tmp:
@@ -360,18 +377,18 @@ def get_machines() -> List[SimpleMachine]:
     return machines
 ```
 
-Then, it should be quite straightforward to iterate over `SimpleMachine`s array, check each machine's age, and mark it for deletion.
+From here, we can iterate over the `SimpleMachine`s array, check each Machine's age, and mark it for deletion.
 
-Entire program code for aged machines pruning along with a Helm chart might be found in [Github repository](https://github.com/openshift-cloud-team/aged-machines-pruner/blob/main/aged-machines-pruner/src/main.py).
+The complete program code for aged machines pruning along with a Helm chart can be found in this [Github repository](https://github.com/openshift-cloud-team/aged-machines-pruner/blob/main/aged-machines-pruner/src/main.py).
 
 ### Conclusion
 
-As was shown it is quite possible to automate a quite large subset of tasks with CronJobs and simple scripting (using bash, python, or other scripting languages).
-Using Helm to organize development and deployment workflow is also quite beneficial.
+As was shown, it is possible to automate a large subset of tasks with CronJobs and simple scripting (using bash, python, or other scripting languages).
+Using Helm to organize the development and deployment workflow can also be quite beneficial.
 
-Ready to install chart with the full version of the pruner program might be found on GitHub: https://github.com/openshift-cloud-team/aged-machines-pruner/
+A ready to install chart, with the full version of the pruner program can be found on GitHub: https://github.com/openshift-cloud-team/aged-machines-pruner/
 
-Some useful documentation links and materials for further reading: 
+Finally, some additional useful documentation links and materials relevant to this article, for further reading:
 
 - [CronJobs](https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/) / [Jobs](https://kubernetes.io/docs/concepts/workloads/controllers/job/)
 - [MachineSets](https://docs.openshift.com/container-platform/4.10/machine_management/creating_machinesets/creating-machineset-aws.html#machine-api-overview_creating-machineset-aws)
